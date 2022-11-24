@@ -1,8 +1,9 @@
 #![allow(unused_imports)] // temporary
 
 use std::error::Error;
+use std::task::Context;
 use std::time::Duration;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 use shared::*;
 use tokio::time::sleep;
@@ -17,8 +18,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(&address).await?;
     println!("Listening on: {}", address);
 
+    // let mut sockets = vec![];
+
     loop {
         let (mut socket, client) = listener.accept().await?;
+
+        // listener.
 
         tokio::spawn(async move {
             println!("Connection established with {}", client);
@@ -46,7 +51,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             
                 let message = bincode::deserialize::<ServerMessage>(&buf[..]).expect("Failed deserializing message");
 
-                println!("Message: {:#?}", message);
+                println!("Message from {client}: {:#?}", message);
+
+                match message {
+                    ServerMessage::TetrisMove(e) => {
+                        let bin = serialize_message(ClientMessage::OtherTetrisMove(e));
+                    },
+                }
 
             }
         });

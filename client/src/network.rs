@@ -18,16 +18,25 @@ struct NetworkResource {
 
 fn setup_client(mut commands: Commands) {
     let stream = std::net::TcpStream::connect("127.0.0.1:8080").expect("Failed to connect to server");
+    stream.set_nonblocking(true).expect("Failed to enable non-blocking mode");
     commands.insert_resource(NetworkResource {
         stream,
     });
 }
 
 fn read_messages(mut network: ResMut<NetworkResource>) {
-    let mut buf = vec![];
-    network.stream.read_to_end(&mut buf).expect("Failed reading stream");
-    let messages: Vec<ClientMessage> = bincode::deserialize(&buf[..]).expect("Unable to deserialize stream");
-    if messages.len() > 0 {
-        println!("Messages: {:#?}", messages);
+    loop {
+        let mut len = [0; 1];
+        match network.stream.read_exact(&mut len) {
+            Err(_) => return,
+            _ => {},
+        };
+    
+        let mut buf = vec![0; len[0] as usize];
+        network.stream.read_exact(&mut buf).expect("Failed reading body");
+    
+        let message = bincode::deserialize::<ClientMessage>(&buf[..]).expect("Failed deserializing message");
+    
+        println!("{:#?}", message);
     }
 }

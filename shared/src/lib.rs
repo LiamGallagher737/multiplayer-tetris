@@ -2,13 +2,9 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMessage {
-    StartGame, // Start the Game
+    GameStart, // Start the Game
     OtherTetrisMove(TetrisMove), // Other player peice moved
-    BallUpdate { // Update pong ball
-        position: [f32; 2],
-        velocity: [f32; 2],
-    },
-    StateUpdate(GameState),
+    GameState(GameState), // Set game state
     GameEnd(u8), // End the game | u8: Winning Player
 }
 

@@ -1,7 +1,9 @@
 use std::error::Error;
+use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use shared::*;
+use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -18,8 +20,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         tokio::spawn(async move {
             println!("Connection established with {}", client);
-            let buf = bincode::serialize(&vec![ClientMessage::StartGame]).expect("Failed serializing messages");
-            socket.write_all(&buf[..]).await.expect("Failed to write data to socket");
+            loop {
+
+                let mut buf = bincode::serialize(&ClientMessage::GameStart).expect("Failed serializing messages");
+                buf.insert(0, buf.len() as u8);
+                socket.write(&buf[..]).await.expect("Failed to write data to socket");
+
+                let mut buf = bincode::serialize(&ClientMessage::GameEnd(7)).expect("Failed serializing messages");
+                buf.insert(0, buf.len() as u8);
+                socket.write(&buf[..]).await.expect("Failed to write data to socket");
+
+                println!("Sent Data");
+                sleep(Duration::from_secs(2)).await;
+            }
         });
     }
 }

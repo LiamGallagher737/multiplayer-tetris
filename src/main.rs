@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use shared::*;
+use serde::{Deserialize, Serialize};
 
 mod network;
 
@@ -15,22 +15,31 @@ fn main() {
         .add_plugin(network::NetworkPlugin)
         .add_system(player_input)
         .add_event::<TetrisMoveEvent>()
-        .add_event::<OtherTetrisMoveEvent>()
         .run();
 }
 
-pub type TetrisBoard = [[Option<TetrisTile>; 20]; 10];
-pub type TetrisMoveEvent = TetrisMove;
-pub type OtherTetrisMoveEvent = TetrisMove;
-
-pub struct TetrisTile {
-    pub color: Color,
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub enum GameMode {
+    #[default]
+    Normal,
+    Hyper,
+    Swap,
 }
 
-fn player_input(
-    keys: Res<Input<KeyCode>>,
-    mut move_events: EventWriter<TetrisMoveEvent>,
-) {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum TetrisMove {
+    Left,
+    Right,
+    Drop,     // Normal Falling
+    SoftDrop, // Player Fall
+    HardDrop, // Tp to Bottom
+    RotateLeft,
+    RotateRight,
+}
+
+pub type TetrisMoveEvent = TetrisMove;
+
+fn player_input(keys: Res<Input<KeyCode>>, mut move_events: EventWriter<TetrisMoveEvent>) {
     // Based on this post https://www.reddit.com/r/Tetris/comments/8viwld/comment/e5kcgr7/?utm_source=share&utm_medium=web2x&context=3
     if keys.just_pressed(KeyCode::W) || keys.just_pressed(KeyCode::Up) {
         move_events.send(TetrisMove::HardDrop);

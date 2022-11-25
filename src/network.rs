@@ -27,8 +27,8 @@ impl Plugin for NetworkPlugin {
             }
             _ => panic!("Please choose HOST or CLIENT"),
         };
-        app.add_system(send_move_events.run_if_resource_exists::<ClientResource>());
         app.add_system(receive_messages.run_if_resource_exists::<ClientResource>());
+        app.add_system(send_move_events.run_if_resource_exists::<ClientResource>());
     }
 }
 
@@ -54,21 +54,26 @@ enum ClientMessage {
 
 fn setup_host(mut commands: Commands) {
     let listener = TcpListener::bind("127.0.0.1:8080").expect("Failed creating TCP listener");
-    listener.set_nonblocking(true).expect("Failed to enable non-blocking mode");
+    listener
+        .set_nonblocking(true)
+        .expect("Failed to enable non-blocking mode");
     println!("Hosting TCP server at 127.0.0.1:8080");
     commands.insert_resource(HostResource { listener });
 }
 
 fn setup_client(mut commands: Commands) {
     let stream = TcpStream::connect("127.0.0.1:8080").expect("Failed to connect to TCP server");
-    stream.set_nonblocking(true).expect("Failed to enable non-blocking mode");
+    stream
+        .set_nonblocking(true)
+        .expect("Failed to enable non-blocking mode");
     println!("Connected to TCP server at 127.0.0.1:8080");
     commands.insert_resource(ClientResource { stream });
 }
 
 fn check_for_connections(mut commands: Commands, host: Res<HostResource>) {
     if let Some(Ok(stream)) = host.listener.incoming().nth(0) {
-        commands.insert_resource(ClientResource { stream })
+        println!("Client connected from {}", stream.peer_addr().unwrap());
+        commands.insert_resource(ClientResource { stream });
     }
 }
 
@@ -77,7 +82,7 @@ fn receive_messages(mut client: ResMut<ClientResource>) {
         match message {
             ClientMessage::Move(m) => {
                 dbg!(m);
-            },
+            }
         }
     }
 }

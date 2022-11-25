@@ -1,19 +1,35 @@
-use bevy::prelude::{Color, Deref, Resource, Vec2};
+use bevy::prelude::*;
+use lazy_static::{__Deref, lazy_static};
 use rand::{seq::SliceRandom, thread_rng};
 
-pub type OwnTetrisBoard = TetrisBoard;
-pub type OtherTetrisBoard = TetrisBoard;
+// pub type OwnTetrisBoard = TetrisBoard;
+// pub type OtherTetrisBoard = TetrisBoard;
 
-#[derive(Deref, Resource)]
+#[derive(Resource, Deref)]
+pub struct OwnTetrisBoard(pub TetrisBoard);
+
+#[derive(Resource, Deref)]
+pub struct OtherTetrisBoard(pub TetrisBoard);
+
 pub struct TetrisBoard {
-    board: [[Option<TetrisTile>; 20]; 10],
+    pub offset: Vec2,
+    pub tiles: [[Option<TetrisTile>; 20]; 10],
 }
 
 impl TetrisBoard {
-    pub fn empty() -> Self {
+    pub fn new(offset: Vec2) -> Self {
         Self {
-            board: [[None; 20]; 10],
+            offset,
+            tiles: [[None; 20]; 10],
         }
+    }
+    pub fn get_position(&self, x: u8, y: u8) -> Vec3 {
+        [
+            (x as f32 * 8.0) - (5.0 * 8.0) + 4.0 + self.offset.x,
+            -(y as f32 * 8.0) + (10.0 * 8.0) - 4.0 + self.offset.y,
+            0.0,
+        ]
+        .into()
     }
 }
 
@@ -25,14 +41,14 @@ pub struct TetrisPieceBuffer {
 impl TetrisPieceBuffer {
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        let mut pieces = tetris_peices();
+        let mut pieces = TETRIS_PIECES.deref().to_owned();
         pieces.shuffle(&mut rng);
         Self { pieces }
     }
     pub fn pop(&mut self) -> TetrisPiece {
         if self.pieces.is_empty() {
             let mut rng = thread_rng();
-            let mut pieces = tetris_peices();
+            let mut pieces = TETRIS_PIECES.deref().to_owned();
             pieces.shuffle(&mut rng);
             self.pieces = pieces;
         }
@@ -45,16 +61,24 @@ pub struct TetrisTile {
     color: Color,
 }
 
+#[derive(Clone)]
 pub struct TetrisPiece {
     pub orgin: Vec2, // Starting froom top left of tiles
     pub rotate: bool,
     pub tiles: Vec<Vec<bool>>,
 }
 
-#[rustfmt::skip]
-pub fn tetris_peices() -> Vec<TetrisPiece> {
+lazy_static! {
+    pub static ref TETRIS_COLORS: Vec<Color> = vec![
+        Color::hsl(0.0, 0.7, 0.8),
+        Color::hsl(50.0, 0.7, 0.8),
+        Color::hsl(100.0, 0.7, 0.8),
+        Color::hsl(175.0, 0.7, 0.8),
+        Color::hsl(240.0, 0.7, 0.8),
+        Color::hsl(300.0, 0.7, 0.8),
+    ];
     // Based on this tetris game https://tetris.com/play-tetris
-    vec![
+    pub static ref TETRIS_PIECES: Vec<TetrisPiece> = vec![
         TetrisPiece {
             orgin: [1.0, 0.0].into(),
             rotate: true,
@@ -106,9 +130,9 @@ pub fn tetris_peices() -> Vec<TetrisPiece> {
             orgin: [1.0, -1.0].into(),
             rotate: true,
             tiles: [
-                [false, true, false].into(),
                 [true, true, true].into(),
+                [false, true, false].into(),
             ].into(),
         },
-    ]
+    ];
 }

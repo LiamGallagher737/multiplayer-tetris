@@ -1,12 +1,15 @@
 use bevy::prelude::*;
 use bevy::{core_pipeline::bloom::BloomSettings, time::FixedTimestep};
+use iyes_loopless::prelude::IntoConditionalSystem;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use tetris::*;
 
+mod movement;
 mod network;
 mod tetris;
+mod visuals;
 
 #[rustfmt::skip]
 fn main() {
@@ -22,29 +25,32 @@ fn main() {
                     },
                     ..Default::default()
                 })
-                .set(ImagePlugin::default_linear()),
+                .set(ImagePlugin::default_nearest()),
         )
 
         .add_plugin(network::NetworkPlugin)
         // .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         // .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(bevy_editor_pls::EditorPlugin)
 
         .insert_resource(TetrisPieceBuffer::new())
         .insert_resource(OwnTetrisBoard(TetrisBoard::new([-60.0, 0.0].into())))
         .insert_resource(OtherTetrisBoard(TetrisBoard::new([60.0, 0.0].into())))
 
         .add_startup_system(setup_scene)
-        .add_startup_system(spawn_piece)
-
-        .add_system(player_input)
-        .add_system(move_piece)
+        
+        .add_system(movement::player_input)
+        .add_system(movement::move_piece.run_if_resource_exists::<FallingTiles>())
+        .add_system(spawn_piece.run_unless_resource_exists::<FallingTiles>())
+        .add_system(visuals::draw_falling.run_if_resource_exists::<FallingTiles>())
+        .add_system(visuals::draw_tiles)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::steps_per_second(1.0))
-                .with_system(tetris_gravity)
+                .with_system(movement::tetris_gravity)
         )
 
-        .add_event::<TetrisMoveEvent>()
+        .add_event::<movement::TetrisMoveEvent>()
 
         .run();
 }
@@ -57,13 +63,11 @@ pub enum GameMode {
     Swap,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum TetrisMove {
     Left,
     Right,
-    Fall,     // Normal Falling
-    SoftDrop, // Player Fall
-    HardDrop, // Tp to Bottom
+    Fall,
     RotateLeft,
     RotateRight,
 }
@@ -88,117 +92,49 @@ fn setup_scene(
         },
         BloomSettings {
             threshold: 0.3,
-            intensity: 1.5,
+            intensity: 2.0,
             ..Default::default()
         },
     ));
 
     let mut spawn_board = |board: &TetrisBoard| {
-        for x in 0..board.tiles.len() {
-            for y in 0..board.tiles[0].len() {
-                let position = board.get_position(x as u8, y as u8);
-                commands.spawn(SpriteBundle {
-                    texture: asset_server.load("tetris_tile.png"),
-                    transform: Transform::from_translation(position),
-                    sprite: Sprite {
-                        color: Color::hsla(100.0, 0.0, 0.2, 0.4),
+        commands.spawn(SpatialBundle::default()).with_children(|p| {
+            for x in 0..board.tiles.len() {
+                for y in 0..board.tiles[0].len() {
+                    let position = board.get_position([x as i32, y as i32].into());
+                    p.spawn(SpriteBundle {
+                        texture: asset_server.load("tetris_tile.png"),
+                        transform: Transform::from_translation(position),
+                        sprite: Sprite {
+                            color: Color::hsla(100.0, 0.0, 0.2, 0.4),
+                            ..Default::default()
+                        },
                         ..Default::default()
-                    },
-                    ..Default::default()
-                });
+                    });
+                }
             }
-        }
+        });
     };
 
     spawn_board(own_tetris_board.as_ref());
     spawn_board(other_tetris_board.as_ref());
 }
 
-fn spawn_piece(
-    mut commands: Commands,
-    mut buf: ResMut<TetrisPieceBuffer>,
-    asset_server: Res<AssetServer>,
-) {
+fn spawn_piece(mut commands: Commands, mut buf: ResMut<TetrisPieceBuffer>) {
     let mut rng = thread_rng();
     let color = *TETRIS_COLORS.choose(&mut rng).unwrap();
     let piece = buf.pop();
 
+    let mut falling_tiles = vec![];
     for (y, v) in piece.tiles.iter().enumerate() {
         for x in v
             .iter()
             .enumerate()
             .filter_map(|(i, t)| if *t { Some(i) } else { None })
         {
-            commands.spawn((
-                SpriteBundle {
-                    texture: asset_server.load("tetris_tile.png"),
-                    sprite: Sprite {
-                        color,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                FallingPiece {
-                    origin: piece.orgin,
-                    board_positon: [x as i32 + 3, -(y as i32)].into(),
-                },
-            ));
+            let board_position = [x as i32 + 3, y as i32].into();
+            falling_tiles.push((board_position, TetrisTile { color }));
         }
     }
-}
-
-#[derive(Component)]
-struct FallingPiece {
-    origin: Vec2,
-    board_positon: IVec2,
-}
-
-fn move_piece(
-    mut query: Query<(&mut Transform, &mut FallingPiece), With<FallingPiece>>,
-    mut move_events: EventReader<TetrisMoveEvent>,
-    board: Res<OwnTetrisBoard>,
-) {
-    for m in move_events.iter() {
-        for (_, mut p) in query.iter_mut() {
-            match m {
-                TetrisMove::Left => p.board_positon.x -= 1,
-                TetrisMove::Right => p.board_positon.x += 1,
-                TetrisMove::Fall => p.board_positon.y -= 1,
-                TetrisMove::SoftDrop => p.board_positon.y -= 1,
-                TetrisMove::RotateLeft => {},
-                TetrisMove::RotateRight => {},
-                TetrisMove::HardDrop => {},
-            };
-        }
-    }
-    for (mut t, p) in query.iter_mut() {
-        t.translation = board.get_position(p.board_positon.x as u8, -p.board_positon.y as u8)
-    }
-}
-
-fn tetris_gravity(mut move_events: EventWriter<TetrisMoveEvent>) {
-    move_events.send(TetrisMove::Fall);
-}
-
-pub type TetrisMoveEvent = TetrisMove;
-fn player_input(keys: Res<Input<KeyCode>>, mut move_events: EventWriter<TetrisMoveEvent>) {
-    // Based on this post https://www.reddit.com/r/Tetris/comments/8viwld/comment/e5kcgr7/?utm_source=share&utm_medium=web2x&context=3
-    if keys.just_pressed(KeyCode::W) || keys.just_pressed(KeyCode::Up) {
-        move_events.send(TetrisMove::HardDrop);
-    }
-    if keys.just_pressed(KeyCode::S) || keys.just_pressed(KeyCode::Down) {
-        move_events.send(TetrisMove::SoftDrop);
-    }
-    if keys.just_pressed(KeyCode::A) || keys.just_pressed(KeyCode::Left) {
-        move_events.send(TetrisMove::Left);
-    }
-    if keys.just_pressed(KeyCode::D) || keys.just_pressed(KeyCode::Right) {
-        move_events.send(TetrisMove::Right);
-    }
-    if keys.just_pressed(KeyCode::Q) || keys.just_pressed(KeyCode::Z) {
-        move_events.send(TetrisMove::RotateLeft);
-    }
-    if keys.just_pressed(KeyCode::E) || keys.just_pressed(KeyCode::X) {
-        move_events.send(TetrisMove::RotateRight);
-    }
+    commands.insert_resource(FallingTiles(falling_tiles));
 }

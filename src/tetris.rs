@@ -2,13 +2,24 @@ use bevy::prelude::*;
 use lazy_static::{__Deref, lazy_static};
 use rand::{seq::SliceRandom, thread_rng};
 
-// pub type OwnTetrisBoard = TetrisBoard;
-// pub type OtherTetrisBoard = TetrisBoard;
+#[derive(Component)]
+pub struct Tile;
 
-#[derive(Resource, Deref)]
+#[derive(Component)]
+pub struct FallingTile;
+
+#[derive(Clone, Copy, Debug)]
+pub struct TetrisTile {
+    pub color: Color,
+}
+
+#[derive(Resource, Deref, DerefMut)]
+pub struct FallingTiles(pub Vec<(IVec2, TetrisTile)>);
+
+#[derive(Resource, Deref, DerefMut)]
 pub struct OwnTetrisBoard(pub TetrisBoard);
 
-#[derive(Resource, Deref)]
+#[derive(Resource, Deref, DerefMut)]
 pub struct OtherTetrisBoard(pub TetrisBoard);
 
 pub struct TetrisBoard {
@@ -23,14 +34,43 @@ impl TetrisBoard {
             tiles: [[None; 20]; 10],
         }
     }
-    pub fn get_position(&self, x: u8, y: u8) -> Vec3 {
+    pub fn set(&mut self, tile: IVec2, value: Option<TetrisTile>) {
+        if let Some(e) = self.tiles.get_mut(tile.x as usize) {
+            if let Some(e) = e.get_mut(tile.y as usize) {
+                *e = value;
+            }
+        }
+    }
+    pub fn get_position(&self, tile: IVec2) -> Vec3 {
         [
-            (x as f32 * 8.0) - (5.0 * 8.0) + 4.0 + self.offset.x,
-            -(y as f32 * 8.0) + (10.0 * 8.0) - 4.0 + self.offset.y,
+            (tile.x as f32 * 8.0) - (5.0 * 8.0) + 4.0 + self.offset.x,
+            -(tile.y as f32 * 8.0) + (10.0 * 8.0) - 4.0 + self.offset.y,
             0.0,
         ]
         .into()
     }
+    pub fn tile_empty(&self, tile: IVec2) -> bool {
+        if let Some(e) = self.tiles.get(tile.x as usize) {
+            if let Some(e) = e.get(tile.y as usize) {
+                return e.is_none();
+            }
+        }
+        false
+    }
+    pub fn get_row(&self, row: usize) -> Vec<Option<TetrisTile>> {
+        let mut tiles = vec![];
+        for col in self.tiles {
+            tiles.push(col[row]);
+        }
+        tiles
+    }
+}
+
+#[derive(Clone)]
+pub struct TetrisPiece {
+    pub orgin: IVec2, // Starting froom top left of tiles
+    pub rotate: bool,
+    pub tiles: Vec<Vec<bool>>,
 }
 
 #[derive(Resource)]
@@ -56,19 +96,8 @@ impl TetrisPieceBuffer {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct TetrisTile {
-    color: Color,
-}
-
-#[derive(Clone)]
-pub struct TetrisPiece {
-    pub orgin: Vec2, // Starting froom top left of tiles
-    pub rotate: bool,
-    pub tiles: Vec<Vec<bool>>,
-}
-
 lazy_static! {
+
     pub static ref TETRIS_COLORS: Vec<Color> = vec![
         Color::hsl(0.0, 0.7, 0.8),
         Color::hsl(50.0, 0.7, 0.8),
@@ -77,17 +106,18 @@ lazy_static! {
         Color::hsl(240.0, 0.7, 0.8),
         Color::hsl(300.0, 0.7, 0.8),
     ];
+
     // Based on this tetris game https://tetris.com/play-tetris
     pub static ref TETRIS_PIECES: Vec<TetrisPiece> = vec![
         TetrisPiece {
-            orgin: [1.0, 0.0].into(),
+            orgin: [1, 0].into(),
             rotate: true,
             tiles: [
                 [true, true, true, true].into(),
             ].into(),
         },
         TetrisPiece {
-            orgin: [1.0, -1.0].into(),
+            orgin: [1, -1].into(),
             rotate: true,
             tiles: [
                 [true, false, false].into(),
@@ -95,7 +125,7 @@ lazy_static! {
             ].into(),
         },
         TetrisPiece {
-            orgin: [1.0, -1.0].into(),
+            orgin: [1, -1].into(),
             rotate: true,
             tiles: [
                 [false, false, true].into(),
@@ -103,7 +133,7 @@ lazy_static! {
             ].into(),
         },
         TetrisPiece {
-            orgin: [0.5, 0.5].into(),
+            orgin: [0, 0].into(),
             rotate: false,
             tiles: [
                 [true, true].into(),
@@ -111,7 +141,7 @@ lazy_static! {
             ].into(),
         },
         TetrisPiece {
-            orgin: [1.0, -1.0].into(),
+            orgin: [1, -1].into(),
             rotate: true,
             tiles: [
                 [false, true, true].into(),
@@ -119,7 +149,7 @@ lazy_static! {
             ].into(),
         },
         TetrisPiece {
-            orgin: [1.0, -1.0].into(),
+            orgin: [1, -1].into(),
             rotate: true,
             tiles: [
                 [true, true, false].into(),
@@ -127,7 +157,7 @@ lazy_static! {
             ].into(),
         },
         TetrisPiece {
-            orgin: [1.0, -1.0].into(),
+            orgin: [1, -1].into(),
             rotate: true,
             tiles: [
                 [true, true, true].into(),
@@ -135,4 +165,5 @@ lazy_static! {
             ].into(),
         },
     ];
+
 }

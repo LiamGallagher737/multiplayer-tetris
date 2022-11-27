@@ -6,7 +6,7 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::{GameMode, TetrisMove, TetrisMoveEvent};
+use crate::{movement::TetrisMoveEvent, GameMode, TetrisMove};
 
 pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
@@ -71,7 +71,8 @@ fn setup_client(mut commands: Commands) {
 }
 
 fn check_for_connections(mut commands: Commands, host: Res<HostResource>) {
-    if let Some(Ok(stream)) = host.listener.incoming().nth(0) {
+    if let Some(Ok(stream)) = host.listener.incoming().next() {
+        // used to be .nth(0)
         println!("Client connected from {}", stream.peer_addr().unwrap());
         commands.insert_resource(ClientResource { stream });
     }
@@ -95,7 +96,7 @@ fn send_move_events(
         let buf = serialize_message(ClientMessage::Move(m.to_owned()));
         client
             .stream
-            .write(&buf)
+            .write_all(&buf) // used to be Write clippy changed to write_all
             .expect("Failed to send movement to server");
     }
 }

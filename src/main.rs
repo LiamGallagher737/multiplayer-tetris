@@ -44,6 +44,7 @@ fn main() {
         .add_system(spawn_piece.run_unless_resource_exists::<FallingTiles>())
         .add_system(visuals::draw_falling.run_if_resource_exists::<FallingTiles>())
         .add_system(visuals::draw_tiles)
+        .add_system(tetris::clear_lines.run_if_resource_removed::<FallingTiles>()) // .run_if_resource_removed::<FallingTiles>()
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::steps_per_second(1.0))

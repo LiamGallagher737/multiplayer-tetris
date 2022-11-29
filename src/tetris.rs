@@ -57,13 +57,6 @@ impl TetrisBoard {
         }
         false
     }
-    pub fn get_row(&self, row: usize) -> Vec<Option<TetrisTile>> {
-        let mut tiles = vec![];
-        for col in self.tiles {
-            tiles.push(col[row]);
-        }
-        tiles
-    }
 }
 
 #[derive(Clone)]
@@ -94,6 +87,43 @@ impl TetrisPieceBuffer {
         }
         self.pieces.pop().unwrap()
     }
+}
+
+pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
+    let mut is_line = [true; 20];
+    for col in board.tiles {
+        for (j, tile) in col.iter().enumerate() {
+            if tile.is_none() {
+                is_line[j] = false;
+            }
+        }
+    }
+
+    let points = match is_line.len() {
+        1 => 40,
+        2 => 100,
+        3 => 30,
+        4 => 1200,
+        _ => 0,
+    };
+
+    for i in is_line
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| if *l { Some(i) } else { None })
+    {
+        println!("{}", i);
+        for col in 0..board.tiles.len() {
+            board.tiles[col][i] = None;
+            for row in (0..i).rev() {
+                let t = board.tiles[col][row];
+                board.tiles[col][row] = None;
+                board.tiles[col][row + 1] = t;
+            }
+        }
+    }
+
+    println!("Points: {}", points);
 }
 
 lazy_static! {

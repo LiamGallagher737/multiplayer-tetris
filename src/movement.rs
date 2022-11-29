@@ -1,7 +1,7 @@
 use crate::{tetris::*, TetrisMove};
 use bevy::prelude::*;
 
-pub(crate) fn move_piece(
+pub fn move_piece(
     mut commands: Commands,
     mut move_events: EventReader<TetrisMoveEvent>,
     mut falling_tiles: ResMut<FallingTiles>,
@@ -53,16 +53,13 @@ pub(crate) fn move_piece(
     }
 }
 
-pub(crate) fn tetris_gravity(mut move_events: EventWriter<TetrisMoveEvent>) {
+pub fn tetris_gravity(mut move_events: EventWriter<TetrisMoveEvent>) {
     move_events.send(TetrisMove::Fall);
 }
 
 pub type TetrisMoveEvent = TetrisMove;
 
-pub(crate) fn player_input(
-    keys: Res<Input<KeyCode>>,
-    mut move_events: EventWriter<TetrisMoveEvent>,
-) {
+pub fn player_input(keys: Res<Input<KeyCode>>, mut move_events: EventWriter<TetrisMoveEvent>) {
     // Based on this post https://www.reddit.com/r/Tetris/comments/8viwld/comment/e5kcgr7/?utm_source=share&utm_medium=web2x&context=3
     if keys.just_pressed(KeyCode::W) || keys.just_pressed(KeyCode::Up) {
         move_events.send_batch([TetrisMove::Fall; 20])

@@ -1,14 +1,12 @@
 use bevy::prelude::*;
 use lazy_static::{__Deref, lazy_static};
 use rand::{seq::SliceRandom, thread_rng};
-
-#[derive(Component)]
-pub struct Tile;
+use serde::{Deserialize, Serialize};
 
 #[derive(Component)]
 pub struct FallingTile;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TetrisTile {
     pub color: Color,
 }
@@ -22,6 +20,7 @@ pub struct OwnTetrisBoard(pub TetrisBoard);
 #[derive(Resource, Deref, DerefMut)]
 pub struct OtherTetrisBoard(pub TetrisBoard);
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TetrisBoard {
     pub offset: Vec2,
     pub tiles: [[Option<TetrisTile>; 20]; 10],
@@ -112,7 +111,6 @@ pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
         .enumerate()
         .filter_map(|(i, l)| if *l { Some(i) } else { None })
     {
-        println!("{}", i);
         for col in 0..board.tiles.len() {
             board.tiles[col][i] = None;
             for row in (0..i).rev() {
@@ -122,8 +120,6 @@ pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
             }
         }
     }
-
-    println!("Points: {}", points);
 }
 
 lazy_static! {

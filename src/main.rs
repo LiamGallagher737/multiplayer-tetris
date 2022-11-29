@@ -28,10 +28,11 @@ fn main() {
                 .set(ImagePlugin::default_nearest()),
         )
 
-        .add_plugin(network::NetworkPlugin)
+        .add_plugin(bevy_editor_pls::EditorPlugin)
         // .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         // .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(bevy_editor_pls::EditorPlugin)
+
+        .add_plugin(network::NetworkPlugin)
 
         .insert_resource(TetrisPieceBuffer::new())
         .insert_resource(OwnTetrisBoard(TetrisBoard::new([-60.0, 0.0].into())))
@@ -76,8 +77,8 @@ pub enum TetrisMove {
 fn setup_scene(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    own_tetris_board: Res<OwnTetrisBoard>,
-    other_tetris_board: Res<OtherTetrisBoard>,
+    own_board: Res<OwnTetrisBoard>,
+    other_board: Res<OtherTetrisBoard>,
 ) {
     commands.spawn((
         Camera2dBundle {
@@ -117,8 +118,8 @@ fn setup_scene(
         });
     };
 
-    spawn_board(own_tetris_board.as_ref());
-    spawn_board(other_tetris_board.as_ref());
+    spawn_board(own_board.as_ref());
+    spawn_board(other_board.as_ref());
 }
 
 fn spawn_piece(mut commands: Commands, mut buf: ResMut<TetrisPieceBuffer>) {

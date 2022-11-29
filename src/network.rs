@@ -6,7 +6,10 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::{movement::TetrisMoveEvent, GameMode, TetrisMove};
+use crate::{
+    tetris::{OtherTetrisBoard, OwnTetrisBoard, TetrisTile},
+    GameMode,
+};
 
 pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
@@ -28,7 +31,7 @@ impl Plugin for NetworkPlugin {
             _ => panic!("Please choose HOST or CLIENT"),
         };
         app.add_system(receive_messages.run_if_resource_exists::<ClientResource>());
-        app.add_system(send_move_events.run_if_resource_exists::<ClientResource>());
+        app.add_system(send_board_updates.run_if_resource_exists::<ClientResource>());
     }
 }
 
@@ -49,7 +52,7 @@ enum HostMessage {
 
 #[derive(Serialize, Deserialize, Debug)]
 enum ClientMessage {
-    Move(TetrisMove),
+    BoardUpdate([[Option<TetrisTile>; 20]; 10]),
 }
 
 fn setup_host(mut commands: Commands) {
@@ -78,45 +81,46 @@ fn check_for_connections(mut commands: Commands, host: Res<HostResource>) {
     }
 }
 
-fn receive_messages(mut client: ResMut<ClientResource>) {
+fn receive_messages(mut client: ResMut<ClientResource>, mut other_board: ResMut<OtherTetrisBoard>) {
     for message in deserialize_messages::<ClientMessage>(&mut client.stream) {
         match message {
-            ClientMessage::Move(m) => {
-                dbg!(m);
+            ClientMessage::BoardUpdate(e) => {
+                other_board.0.tiles = e;
             }
         }
     }
 }
 
-fn send_move_events(
-    mut move_events: EventReader<TetrisMoveEvent>,
-    mut client: ResMut<ClientResource>,
-) {
-    for m in move_events.iter() {
-        let buf = serialize_message(ClientMessage::Move(m.to_owned()));
-        client
-            .stream
-            .write_all(&buf) // used to be Write clippy changed to write_all
-            .expect("Failed to send movement to server");
+fn send_board_updates(board: Res<OwnTetrisBoard>, mut client: ResMut<ClientResource>) {
+    if !board.is_changed() {
+        return;
     }
+    let buf = serialize_message(ClientMessage::BoardUpdate(board.0.tiles.to_owned()));
+    client
+        .stream
+        .write_all(&buf)
+        .expect("Failed to send board update");
 }
 
 fn serialize_message<T: Serialize>(msg: T) -> Vec<u8> {
     let mut buf = bincode::serialize(&msg).expect("Failed serializing message");
-    buf.insert(0, buf.len() as u8);
+    let len = (buf.len() as u16).to_be_bytes();
+    buf.insert(0, len[0]);
+    buf.insert(1, len[1]);
     buf
 }
 
 fn deserialize_messages<T: DeserializeOwned>(stream: &mut TcpStream) -> Vec<T> {
     let mut messages = vec![];
     loop {
-        let mut len = [0; 1];
-        match stream.read_exact(&mut len) {
+        let mut len_bytes = [0; 2];
+        match stream.read_exact(&mut len_bytes) {
             Err(_) => break,
             _ => {}
         };
+        let len = u16::from_be_bytes(len_bytes);
 
-        let mut buf = vec![0; len[0] as usize];
+        let mut buf = vec![0; len as usize];
         stream.read_exact(&mut buf).expect("Failed reading body");
 
         let message = bincode::deserialize::<T>(&buf[..]).expect("Failed deserializing message");

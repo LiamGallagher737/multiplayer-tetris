@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use iyes_loopless::prelude::IntoConditionalSystem;
+use local_ip_address::local_ip;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     io::{Read, Write},
@@ -56,20 +57,28 @@ enum ClientMessage {
 }
 
 fn setup_host(mut commands: Commands) {
-    let listener = TcpListener::bind("127.0.0.1:8080").expect("Failed creating TCP listener");
+    let ip = local_ip()
+        .expect("Failed to get computers local Ip address")
+        .to_string();
+    let addr = format!("{ip}:8080");
+    let listener = TcpListener::bind(addr.clone()).expect("Failed creating TCP listener");
     listener
         .set_nonblocking(true)
         .expect("Failed to enable non-blocking mode");
-    println!("Hosting TCP server at 127.0.0.1:8080");
+    println!("Hosting TCP server at {addr}");
     commands.insert_resource(HostResource { listener });
 }
 
 fn setup_client(mut commands: Commands) {
-    let stream = TcpStream::connect("127.0.0.1:8080").expect("Failed to connect to TCP server");
+    let ip = std::env::args()
+        .nth(2)
+        .expect("Please provide a IP to connect to");
+    let addr = format!("{ip}:8080");
+    let stream = TcpStream::connect(addr.clone()).expect("Failed to connect to TCP server");
     stream
         .set_nonblocking(true)
         .expect("Failed to enable non-blocking mode");
-    println!("Connected to TCP server at 127.0.0.1:8080");
+    println!("Connected to TCP server at {addr}");
     commands.insert_resource(ClientResource { stream });
 }
 

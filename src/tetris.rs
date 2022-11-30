@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 // https://stackoverflow.com/a/38596291
 
 pub const SHAPES: [TetrisPiece; 7] = [
-    //  0       90      180     270
+    // degrees          0       90      180     270
     TetrisPiece::new([0x4640, 0x0E40, 0x4C40, 0x4E00]), // 'T'
     TetrisPiece::new([0x8C40, 0x6C00, 0x8C40, 0x6C00]), // 'S'
     TetrisPiece::new([0x4C80, 0xC600, 0x4C80, 0xC600]), // 'Z'

@@ -41,7 +41,6 @@ pub fn move_piece(
                     _ => 0,
                 };
 
-            println!("te: {}", rotation);
             for x in 0..4 {
                 for y in 0..4 {
                     if current_piece.piece.value(rotation, x, y) {

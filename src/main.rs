@@ -41,11 +41,11 @@ fn main() {
         .add_startup_system(setup_scene)
         
         .add_system(movement::player_input)
-        .add_system(movement::move_piece.run_if_resource_exists::<FallingTiles>())
-        .add_system(spawn_piece.run_unless_resource_exists::<FallingTiles>())
-        .add_system(visuals::draw_falling.run_if_resource_exists::<FallingTiles>())
+        .add_system(movement::move_piece.run_if_resource_exists::<CurrentPiece>())
+        .add_system(spawn_piece.run_unless_resource_exists::<CurrentPiece>())
+        .add_system(visuals::draw_falling.run_if_resource_exists::<CurrentPiece>())
         .add_system(visuals::draw_tiles)
-        .add_system(tetris::clear_lines.run_if_resource_removed::<FallingTiles>()) // .run_if_resource_removed::<FallingTiles>()
+        .add_system(tetris::clear_lines.run_if_resource_removed::<CurrentPiece>())
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::steps_per_second(1.0))
@@ -124,19 +124,29 @@ fn setup_scene(
 
 fn spawn_piece(mut commands: Commands, mut buf: ResMut<TetrisPieceBuffer>) {
     let mut rng = thread_rng();
-    let color = *TETRIS_COLORS.choose(&mut rng).unwrap();
+    let color = COLORS.choose(&mut rng).unwrap();
     let piece = buf.pop();
 
-    let mut falling_tiles = vec![];
-    for (y, v) in piece.tiles.iter().enumerate() {
-        for x in v
-            .iter()
-            .enumerate()
-            .filter_map(|(i, t)| if *t { Some(i) } else { None })
-        {
-            let board_position = [x as i32 + 3, y as i32].into();
-            falling_tiles.push((board_position, TetrisTile { color }));
+    let mut current_piece = CurrentPiece {
+        piece: piece.clone(),
+        position: [3, 0].into(),
+        rotation: 0,
+        tiles: vec![],
+    };
+
+    for x in 0..4 {
+        for y in 0..4 {
+            if piece.value(0, x, y) {
+                let board_position = [x as i32 + 3, y as i32].into();
+                current_piece.tiles.push((
+                    board_position,
+                    TetrisTile {
+                        color: color.to_owned(),
+                    },
+                ));
+            }
         }
     }
-    commands.insert_resource(FallingTiles(falling_tiles));
+
+    commands.insert_resource(current_piece);
 }

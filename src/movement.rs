@@ -4,13 +4,13 @@ use bevy::prelude::*;
 pub fn move_piece(
     mut commands: Commands,
     mut move_events: EventReader<TetrisMoveEvent>,
-    mut falling_tiles: ResMut<FallingTiles>,
+    mut current_piece: ResMut<CurrentPiece>,
     mut board: ResMut<OwnTetrisBoard>,
 ) {
     let mut stop_falling = false;
     'move_loop: for m in move_events.iter() {
         // Check if move allowed
-        for (p, _) in falling_tiles.iter() {
+        for (p, _) in current_piece.tiles.iter() {
             match m {
                 TetrisMove::Left => {
                     if !board.tile_empty(*p - IVec2::X) {
@@ -32,8 +32,51 @@ pub fn move_piece(
             }
         }
 
+        if let TetrisMove::RotateLeft | TetrisMove::RotateRight = m {
+            // Check if rotaton allowed
+            let rotation = current_piece.rotation
+                + match m {
+                    TetrisMove::RotateLeft => 3,
+                    TetrisMove::RotateRight => 1,
+                    _ => 0,
+                };
+
+            println!("te: {}", rotation);
+            for x in 0..4 {
+                for y in 0..4 {
+                    if current_piece.piece.value(rotation, x, y) {
+                        if !board
+                            .tile_empty(IVec2::new(x as i32, y as i32) + current_piece.position)
+                        {
+                            continue 'move_loop;
+                        }
+                    }
+                }
+            }
+
+            // If check passes, move the tiles
+            let color = current_piece.tiles[0].1.color;
+            current_piece.tiles.clear();
+
+            for x in 0..4 {
+                for y in 0..4 {
+                    if current_piece.piece.value(rotation, x, y) {
+                        let board_position =
+                            IVec2::new(x as i32, y as i32) + current_piece.position;
+                        current_piece
+                            .tiles
+                            .push((board_position, TetrisTile { color }));
+                    }
+                }
+            }
+
+            current_piece.rotation = rotation;
+
+            continue 'move_loop;
+        }
+
         // If check passes, move the tiles
-        for tile in falling_tiles.0.iter_mut() {
+        for tile in current_piece.tiles.iter_mut() {
             match m {
                 TetrisMove::Left => tile.0 -= IVec2::X,
                 TetrisMove::Right => tile.0 += IVec2::X,
@@ -41,15 +84,21 @@ pub fn move_piece(
                 _ => {}
             }
         }
+        match m {
+            TetrisMove::Left => current_piece.position -= IVec2::X,
+            TetrisMove::Right => current_piece.position += IVec2::X,
+            TetrisMove::Fall => current_piece.position += IVec2::Y,
+            _ => {}
+        }
     }
 
     move_events.clear();
 
     if stop_falling {
-        for (pos, tile) in falling_tiles.iter() {
+        for (pos, tile) in current_piece.tiles.iter() {
             board.set(*pos, Some(*tile));
         }
-        commands.remove_resource::<FallingTiles>();
+        commands.remove_resource::<CurrentPiece>();
     }
 }
 

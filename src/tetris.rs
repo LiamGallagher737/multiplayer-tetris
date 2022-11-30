@@ -1,7 +1,29 @@
 use bevy::prelude::*;
-use lazy_static::{__Deref, lazy_static};
 use rand::{seq::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
+
+// This post wwas a big help
+// https://stackoverflow.com/a/38596291
+
+pub const SHAPES: [TetrisPiece; 7] = [
+    //  0       90      180     270
+    TetrisPiece::new([0x4640, 0x0E40, 0x4C40, 0x4E00]), // 'T'
+    TetrisPiece::new([0x8C40, 0x6C00, 0x8C40, 0x6C00]), // 'S'
+    TetrisPiece::new([0x4C80, 0xC600, 0x4C80, 0xC600]), // 'Z'
+    TetrisPiece::new([0x4444, 0x0F00, 0x4444, 0x0F00]), // 'I'
+    TetrisPiece::new([0x44C0, 0x8E00, 0xC880, 0xE200]), // 'J'
+    TetrisPiece::new([0x88C0, 0xE800, 0xC440, 0x2E00]), // 'L'
+    TetrisPiece::new([0xCC00, 0xCC00, 0xCC00, 0xCC00]), // 'O'
+];
+
+pub const COLORS: [Color; 6] = [
+    Color::hsl(0.0, 0.7, 0.8),
+    Color::hsl(50.0, 0.7, 0.8),
+    Color::hsl(100.0, 0.7, 0.8),
+    Color::hsl(175.0, 0.7, 0.8),
+    Color::hsl(240.0, 0.7, 0.8),
+    Color::hsl(300.0, 0.7, 0.8),
+];
 
 #[derive(Component)]
 pub struct FallingTile;
@@ -11,8 +33,13 @@ pub struct TetrisTile {
     pub color: Color,
 }
 
-#[derive(Resource, Deref, DerefMut)]
-pub struct FallingTiles(pub Vec<(IVec2, TetrisTile)>);
+#[derive(Resource)]
+pub struct CurrentPiece {
+    pub piece: TetrisPiece,
+    pub position: IVec2,
+    pub rotation: usize,
+    pub tiles: Vec<(IVec2, TetrisTile)>,
+}
 
 #[derive(Resource, Deref, DerefMut)]
 pub struct OwnTetrisBoard(pub TetrisBoard);
@@ -27,7 +54,7 @@ pub struct TetrisBoard {
 }
 
 impl TetrisBoard {
-    pub fn new(offset: Vec2) -> Self {
+    pub const fn new(offset: Vec2) -> Self {
         Self {
             offset,
             tiles: [[None; 20]; 10],
@@ -58,11 +85,33 @@ impl TetrisBoard {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TetrisPiece {
-    pub orgin: IVec2, // Starting froom top left of tiles
-    pub rotate: bool,
-    pub tiles: Vec<Vec<bool>>,
+    pub data: [u16; 4],
+}
+
+impl TetrisPiece {
+    pub const fn new(data: [u16; 4]) -> Self {
+        Self { data }
+    }
+    pub const fn value(&self, rotation: usize, x: u8, y: u8) -> bool {
+        self.data[rotation % 4] & (0x8000 >> (y * 4 + x)) != 0
+    }
+}
+
+impl std::fmt::Display for TetrisPiece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for r in 0..4 {
+            for y in 0..4 {
+                for x in 0..4 {
+                    write!(f, "{}, ", self.value(r, x, y) as u8)?;
+                }
+                writeln!(f)?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Resource)]
@@ -73,14 +122,14 @@ pub struct TetrisPieceBuffer {
 impl TetrisPieceBuffer {
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        let mut pieces = TETRIS_PIECES.deref().to_owned();
+        let mut pieces = SHAPES.to_vec();
         pieces.shuffle(&mut rng);
         Self { pieces }
     }
     pub fn pop(&mut self) -> TetrisPiece {
         if self.pieces.is_empty() {
             let mut rng = thread_rng();
-            let mut pieces = TETRIS_PIECES.deref().to_owned();
+            let mut pieces = SHAPES.to_vec();
             pieces.shuffle(&mut rng);
             self.pieces = pieces;
         }
@@ -98,7 +147,7 @@ pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
         }
     }
 
-    let points = match is_line.len() {
+    let _points = match is_line.len() {
         1 => 40,
         2 => 100,
         3 => 30,
@@ -120,76 +169,4 @@ pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
             }
         }
     }
-}
-
-lazy_static! {
-
-    pub static ref TETRIS_COLORS: Vec<Color> = vec![
-        Color::hsl(0.0, 0.7, 0.8),
-        Color::hsl(50.0, 0.7, 0.8),
-        Color::hsl(100.0, 0.7, 0.8),
-        Color::hsl(175.0, 0.7, 0.8),
-        Color::hsl(240.0, 0.7, 0.8),
-        Color::hsl(300.0, 0.7, 0.8),
-    ];
-
-    // Based on this tetris game https://tetris.com/play-tetris
-    pub static ref TETRIS_PIECES: Vec<TetrisPiece> = vec![
-        TetrisPiece {
-            orgin: [1, 0].into(),
-            rotate: true,
-            tiles: [
-                [true, true, true, true].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [1, -1].into(),
-            rotate: true,
-            tiles: [
-                [true, false, false].into(),
-                [true, true, true].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [1, -1].into(),
-            rotate: true,
-            tiles: [
-                [false, false, true].into(),
-                [true, true, true].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [0, 0].into(),
-            rotate: false,
-            tiles: [
-                [true, true].into(),
-                [true, true].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [1, -1].into(),
-            rotate: true,
-            tiles: [
-                [false, true, true].into(),
-                [true, true, false].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [1, -1].into(),
-            rotate: true,
-            tiles: [
-                [true, true, false].into(),
-                [false, true, true].into(),
-            ].into(),
-        },
-        TetrisPiece {
-            orgin: [1, -1].into(),
-            rotate: true,
-            tiles: [
-                [true, true, true].into(),
-                [false, true, false].into(),
-            ].into(),
-        },
-    ];
-
 }

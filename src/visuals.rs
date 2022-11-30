@@ -13,13 +13,13 @@ pub fn draw_falling(
     asset_server: Res<AssetServer>,
     own_board: Res<OwnTetrisBoard>,
     own_query: Query<Entity, With<FallingTile>>,
-    own_tiles: Res<FallingTiles>,
+    own_piece: Res<CurrentPiece>,
 ) {
-    let mut draw_tiles = |tiles: &FallingTiles, board: &TetrisBoard, despawn: Vec<Entity>| {
+    let mut draw_tiles = |piece: &CurrentPiece, board: &TetrisBoard, despawn: Vec<Entity>| {
         for e in despawn {
             commands.entity(e).despawn();
         }
-        for (pos, tile) in tiles.iter() {
+        for (pos, tile) in piece.tiles.iter() {
             commands.spawn((
                 SpriteBundle {
                     texture: asset_server.load("tetris_tile.png"),
@@ -35,9 +35,9 @@ pub fn draw_falling(
         }
     };
 
-    if own_tiles.is_changed() {
+    if own_piece.is_changed() {
         draw_tiles(
-            own_tiles.deref(),
+            own_piece.deref(),
             own_board.deref(),
             own_query.iter().collect(),
         );

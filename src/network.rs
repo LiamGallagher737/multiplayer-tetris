@@ -123,12 +123,9 @@ fn deserialize_messages<T: DeserializeOwned>(stream: &mut TcpStream) -> Vec<T> {
     let mut messages = vec![];
     loop {
         let mut len_bytes = [0; 2];
-        match stream.read_exact(&mut len_bytes) {
-            Err(_) => break,
-            _ => {}
-        };
-        let len = u16::from_be_bytes(len_bytes);
-
+        if let Err(_) = stream.read_exact(&mut len_bytes) {
+            break;
+        }
         let mut buf = vec![0; len as usize];
         stream.read_exact(&mut buf).expect("Failed reading body");
 

@@ -43,12 +43,11 @@ pub fn move_piece(
 
             for x in 0..4 {
                 for y in 0..4 {
-                    if current_piece.piece.value(rotation, x, y) {
-                        if !board
+                    if current_piece.piece.value(rotation, x, y)
+                        && !board
                             .tile_empty(IVec2::new(x as i32, y as i32) + current_piece.position)
-                        {
-                            continue 'move_loop;
-                        }
+                    {
+                        continue 'move_loop;
                     }
                 }
             }

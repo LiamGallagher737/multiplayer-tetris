@@ -137,6 +137,35 @@ impl TetrisPieceBuffer {
     }
 }
 
+pub fn spawn_piece(mut commands: Commands, mut buf: ResMut<TetrisPieceBuffer>) {
+    let mut rng = thread_rng();
+    let color = COLORS.choose(&mut rng).unwrap();
+    let piece = buf.pop();
+
+    let mut current_piece = CurrentPiece {
+        piece: piece.clone(),
+        position: [3, 0].into(),
+        rotation: 0,
+        tiles: vec![],
+    };
+
+    for x in 0..4 {
+        for y in 0..4 {
+            if piece.value(0, x, y) {
+                let board_position = [x as i32 + 3, y as i32].into();
+                current_piece.tiles.push((
+                    board_position,
+                    TetrisTile {
+                        color: color.to_owned(),
+                    },
+                ));
+            }
+        }
+    }
+
+    commands.insert_resource(current_piece);
+}
+
 pub fn clear_lines(mut board: ResMut<OwnTetrisBoard>) {
     let mut is_line = [true; 20];
     for col in board.tiles {

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use iyes_loopless::prelude::IntoConditionalSystem;
+use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet, IntoConditionalSystem};
 use local_ip_address::local_ip;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -15,26 +15,50 @@ use crate::{
 pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        let t = std::env::args()
-            .nth(1)
-            .expect("Please choose HOST or CLIENT")
-            .to_lowercase();
-        match t.as_str() {
-            "host" => {
-                app.add_startup_system(setup_host);
-                app.add_system(
-                    check_for_connections.run_unless_resource_exists::<ClientResource>(),
-                );
-            }
-            "client" => {
-                app.add_startup_system(setup_client);
-            }
-            _ => panic!("Please choose HOST or CLIENT"),
-        };
+        // let t = std::env::args()
+        //     .nth(1)
+        //     .expect("Please choose HOST or CLIENT")
+        //     .to_lowercase();
+        // match t.as_str() {
+        //     "host" => {
+        //         app.add_startup_system(setup_host);
+        //         app.add_system(
+        //             check_for_connections.run_unless_resource_exists::<ClientResource>(),
+        //         );
+        //     }
+        //     "client" => {
+        //         app.add_startup_system(setup_client);
+        //     }
+        //     _ => panic!("Please choose HOST or CLIENT"),
+        // };
+
+        app.insert_resource(HostAddress::default());
+
+        app.add_enter_system(NetworkState::Host, setup_host);
+        app.add_enter_system(NetworkState::Client, setup_client);
+
+        app.add_system_set(
+            ConditionSet::new()
+                .run_in_state(NetworkState::Host)
+                .with_system(check_for_connections.run_unless_resource_exists::<ClientResource>())
+                .into(),
+        );
+
         app.add_system(receive_messages.run_if_resource_exists::<ClientResource>());
         app.add_system(send_board_updates.run_if_resource_exists::<ClientResource>());
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum NetworkState {
+    #[default]
+    None,
+    Host,
+    Client,
+}
+
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct HostAddress(pub String);
 
 #[derive(Resource)]
 struct HostResource {
@@ -69,11 +93,11 @@ fn setup_host(mut commands: Commands) {
     commands.insert_resource(HostResource { listener });
 }
 
-fn setup_client(mut commands: Commands) {
-    let ip = std::env::args()
-        .nth(2)
-        .expect("Please provide a IP to connect to");
-    let addr = format!("{ip}:8080");
+fn setup_client(mut commands: Commands, ip: Res<HostAddress>) {
+    // let ip = std::env::args()
+    //     .nth(2)
+    //     .expect("Please provide a IP to connect to");
+    let addr = format!("{}:8080", ip.0);
     let stream = TcpStream::connect(addr.clone()).expect("Failed to connect to TCP server");
     stream
         .set_nonblocking(true)
@@ -126,6 +150,7 @@ fn deserialize_messages<T: DeserializeOwned>(stream: &mut TcpStream) -> Vec<T> {
         if let Err(_) = stream.read_exact(&mut len_bytes) {
             break;
         }
+        let len = u16::from_be_bytes(len_bytes);
         let mut buf = vec![0; len as usize];
         stream.read_exact(&mut buf).expect("Failed reading body");
 

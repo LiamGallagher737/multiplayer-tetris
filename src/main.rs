@@ -1,60 +1,80 @@
+use std::time::Duration;
+
+use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::prelude::*;
-use bevy::{core_pipeline::bloom::BloomSettings, time::FixedTimestep};
-use iyes_loopless::prelude::IntoConditionalSystem;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use iyes_loopless::prelude::{
+    AppLooplessFixedTimestepExt, AppLooplessStateExt, ConditionSet, IntoConditionalSystem,
+};
+use network::NetworkState;
 use serde::{Deserialize, Serialize};
 use tetris::*;
 
 mod movement;
 mod network;
 mod tetris;
+mod ui;
 mod visuals;
 
 #[rustfmt::skip]
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::hex("010d13").unwrap()))
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    window: WindowDescriptor {
-                        title: "Tetris Pong".into(),
-                        present_mode: bevy::window::PresentMode::AutoNoVsync,
-                        ..default()
-                    },
-                    ..Default::default()
-                })
-                .set(ImagePlugin::default_nearest()),
+        .add_plugins(DefaultPlugins
+            .set(WindowPlugin {
+                window: WindowDescriptor {
+                    title: "Tetris Pong".into(),
+                    present_mode: bevy::window::PresentMode::AutoVsync,
+                    ..default()
+                },
+                ..Default::default()
+            })
+            .set(ImagePlugin::default_nearest()),
         )
 
         .add_plugin(bevy_editor_pls::EditorPlugin)
         // .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         // .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
 
+        .add_loopless_state(GameState::Menu)
+        .add_loopless_state(NetworkState::default())
+
+        .add_plugin(ui::UiPlugin)
         .add_plugin(network::NetworkPlugin)
 
-        .insert_resource(TetrisPieceBuffer::new())
-        .insert_resource(OwnTetrisBoard(TetrisBoard::new([-60.0, 0.0].into())))
-        .insert_resource(OtherTetrisBoard(TetrisBoard::new([60.0, 0.0].into())))
+        .add_startup_system(setup)
 
-        .add_startup_system(setup_scene)
-        
-        .add_system(movement::player_input)
-        .add_system(movement::move_piece.run_if_resource_exists::<CurrentPiece>())
-        .add_system(spawn_piece.run_unless_resource_exists::<CurrentPiece>())
-        .add_system(visuals::draw_falling.run_if_resource_exists::<CurrentPiece>())
-        .add_system(visuals::draw_tiles)
-        .add_system(tetris::clear_lines.run_if_resource_removed::<CurrentPiece>())
+        // Playing
+        .add_enter_system(GameState::Playing, game_setup)
         .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::steps_per_second(1.0))
+            ConditionSet::new()
+                .run_in_state(GameState::Playing)
+                .with_system(movement::player_input)
+                .with_system(movement::move_piece.run_if_resource_exists::<CurrentPiece>())
+                .with_system(visuals::draw_falling.run_if_resource_exists::<CurrentPiece>())
+                .with_system(visuals::draw_tiles)
+                .with_system(tetris::spawn_piece.run_unless_resource_exists::<CurrentPiece>())
+                .with_system(tetris::clear_lines.run_if_resource_removed::<CurrentPiece>())
+                .into()
+        )
+
+        .add_fixed_timestep(Duration::from_millis(1000), "gravity")
+        .add_fixed_timestep_system_set("gravity", 0,
+            ConditionSet::new()
+                .run_in_state(GameState::Playing)
                 .with_system(movement::tetris_gravity)
+                .into()
         )
 
         .add_event::<movement::TetrisMoveEvent>()
 
         .run();
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GameState {
+    Menu,
+    JoinMenu,
+    Playing,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -74,12 +94,7 @@ pub enum TetrisMove {
     RotateRight,
 }
 
-fn setup_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    own_board: Res<OwnTetrisBoard>,
-    other_board: Res<OtherTetrisBoard>,
-) {
+fn setup(mut commands: Commands) {
     commands.spawn((
         Camera2dBundle {
             projection: OrthographicProjection {
@@ -98,6 +113,14 @@ fn setup_scene(
             ..Default::default()
         },
     ));
+}
+
+fn game_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let own_board = TetrisBoard::new([-60.0, 0.0].into());
+    let other_board = TetrisBoard::new([60.0, 0.0].into());
+    commands.insert_resource(TetrisPieceBuffer::new());
+    commands.insert_resource(OwnTetrisBoard(own_board.clone()));
+    commands.insert_resource(OtherTetrisBoard(other_board.clone()));
 
     let mut spawn_board = |board: &TetrisBoard| {
         commands.spawn(SpatialBundle::default()).with_children(|p| {
@@ -118,35 +141,6 @@ fn setup_scene(
         });
     };
 
-    spawn_board(own_board.as_ref());
-    spawn_board(other_board.as_ref());
-}
-
-fn spawn_piece(mut commands: Commands, mut buf: ResMut<TetrisPieceBuffer>) {
-    let mut rng = thread_rng();
-    let color = COLORS.choose(&mut rng).unwrap();
-    let piece = buf.pop();
-
-    let mut current_piece = CurrentPiece {
-        piece: piece.clone(),
-        position: [3, 0].into(),
-        rotation: 0,
-        tiles: vec![],
-    };
-
-    for x in 0..4 {
-        for y in 0..4 {
-            if piece.value(0, x, y) {
-                let board_position = [x as i32 + 3, y as i32].into();
-                current_piece.tiles.push((
-                    board_position,
-                    TetrisTile {
-                        color: color.to_owned(),
-                    },
-                ));
-            }
-        }
-    }
-
-    commands.insert_resource(current_piece);
+    spawn_board(&own_board);
+    spawn_board(&other_board);
 }

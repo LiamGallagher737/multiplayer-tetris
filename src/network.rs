@@ -15,23 +15,6 @@ use crate::{
 pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        // let t = std::env::args()
-        //     .nth(1)
-        //     .expect("Please choose HOST or CLIENT")
-        //     .to_lowercase();
-        // match t.as_str() {
-        //     "host" => {
-        //         app.add_startup_system(setup_host);
-        //         app.add_system(
-        //             check_for_connections.run_unless_resource_exists::<ClientResource>(),
-        //         );
-        //     }
-        //     "client" => {
-        //         app.add_startup_system(setup_client);
-        //     }
-        //     _ => panic!("Please choose HOST or CLIENT"),
-        // };
-
         app.insert_resource(HostAddress::default());
 
         app.add_enter_system(NetworkState::Host, setup_host);
@@ -66,7 +49,7 @@ struct HostResource {
 }
 
 #[derive(Resource)]
-struct ClientResource {
+pub struct ClientResource {
     stream: TcpStream,
 }
 
@@ -118,7 +101,7 @@ fn receive_messages(mut client: ResMut<ClientResource>, mut other_board: ResMut<
     for message in deserialize_messages::<ClientMessage>(&mut client.stream) {
         match message {
             ClientMessage::BoardUpdate(e) => {
-                other_board.0.tiles = e;
+                other_board.tiles = e;
             }
         }
     }

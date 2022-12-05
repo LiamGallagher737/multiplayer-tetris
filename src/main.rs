@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use iyes_loopless::prelude::{
     AppLooplessFixedTimestepExt, AppLooplessStateExt, ConditionSet, IntoConditionalSystem,
 };
-use network::NetworkState;
+use network::{NetworkState, ClientResource};
 use serde::{Deserialize, Serialize};
 use tetris::*;
 
@@ -49,11 +49,19 @@ fn main() {
             ConditionSet::new()
                 .run_in_state(GameState::Playing)
                 .with_system(movement::player_input)
-                .with_system(movement::move_piece.run_if_resource_exists::<CurrentPiece>())
+                // .with_system(movement::move_piece.run_if_resource_exists::<CurrentPiece>())
                 .with_system(visuals::draw_falling.run_if_resource_exists::<CurrentPiece>())
                 .with_system(visuals::draw_tiles)
                 .with_system(tetris::spawn_piece.run_unless_resource_exists::<CurrentPiece>())
                 .with_system(tetris::clear_lines.run_if_resource_removed::<CurrentPiece>())
+                .into()
+        )
+        .add_system_set(
+            ConditionSet::new()
+                .run_in_state(GameState::Playing)
+                .run_if_resource_exists::<CurrentPiece>()
+                .run_if_resource_exists::<ClientResource>()
+                .with_system(movement::move_piece)
                 .into()
         )
 
